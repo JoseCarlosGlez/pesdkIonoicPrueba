@@ -1,0 +1,7 @@
+{
+  "name": "pesdk_ImagesCamera",
+  "integrations": {
+    "cordova": {}
+  },
+  "type": "angular"
+}
