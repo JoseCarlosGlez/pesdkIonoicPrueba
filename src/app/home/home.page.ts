@@ -20,33 +20,83 @@ export class HomePage {
 
   async setupCamera() {
     const options: CameraOptions = {
-      quality: 100,
-      destinationType: this._camera.DestinationType.FILE_URI,
+      quality: 10,
+      destinationType: this._camera.DestinationType.DATA_URL,
       encodingType: this._camera.EncodingType.JPEG,
+      mediaType: this._camera.MediaType.PICTURE,
+      sourceType: this._camera.PictureSourceType.CAMERA,
+      saveToPhotoAlbum: true,
     };
 
-    const tempImage = await this._camera.getPicture(options);
+    let imagen = await this._camera.getPicture(options);
+    let base64ImageData = 'data:image/jpeg;base64,' + imagen;
 
-    const tempFilename = tempImage.substr(tempImage.lastIndexOf('/') + 1);
-    const tempBaseFilesystemPath = tempImage.substr(
-      0,
-      tempImage.lastIndexOf('/') + 1
-    );
-    const newBaseFilesystemPath = this._file.dataDirectory;
-    await this._file.copyFile(
-      tempBaseFilesystemPath,
-      tempFilename,
-      newBaseFilesystemPath,
-      tempFilename
-    );
-
-    const storedPhoto = newBaseFilesystemPath + tempFilename;
-    const displayImage = this._webview.convertFileSrc(storedPhoto);
-    const safeImage: SafeResourceUrl = this._sanatizer.bypassSecurityTrustResourceUrl(
-      displayImage
-    );
-    this.onButtonClick(safeImage['changingThisBreaksApplicationSecurity']);
+    this.writeFile(base64ImageData, 'ImagesCarlos', 'sample.jpeg');
   }
+
+  public async writeFile(base64Data: any, folderName: string, fileName: any) {
+    let contentType = this.getContentType(base64Data);
+    let DataBlob = this.base64toBlob(base64Data, contentType);
+    console.log(DataBlob);
+    // here iam mentioned this line this.file.externalRootDirectory is a native pre-defined file path storage. You can change a file path whatever pre-defined method.
+    let filePath = this._file.dataDirectory + folderName;
+    console.log(filePath);
+
+    try {
+      await this._file.checkDir(this._file.dataDirectory, folderName);
+    } catch (error) {
+      await this._file.createDir(this._file.dataDirectory, folderName, true);
+    }
+
+    this._file
+      .checkDir(this._file.dataDirectory, folderName)
+      .then((_) => console.log('Directory exists'))
+      .catch((err) => console.log(`Directory doesn't exist`));
+
+    this._file
+      .writeFile(filePath, fileName, DataBlob, contentType)
+      .then((success) => {
+        console.log(success);
+        this.EditImage(success.nativeURL);
+        console.log('File Writed Successfully', success);
+      })
+      .catch((err) => {
+        console.log('Error Occured While Writing File', err);
+      });
+  }
+  //here is the method is used to get content type of an bas64 data
+  public getContentType(base64Data: any) {
+    let block = base64Data.split(';');
+    let contentType = block[0].split(':')[1];
+    return contentType;
+  }
+
+  //here is the method is used to convert base64 data to blob data
+  public base64toBlob(b64Data: string, contentType) {
+    let base64withoutspecialCharacteres = b64Data.split(',')[1];
+    contentType = contentType || '';
+    let sliceSize = 512;
+    let byteCharacters = atob(base64withoutspecialCharacteres);
+    let byteArrays = [];
+    for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+      let slice = byteCharacters.slice(offset, offset + sliceSize);
+      let byteNumbers = new Array(slice.length);
+      for (let i = 0; i < slice.length; i++) {
+        byteNumbers[i] = slice.charCodeAt(i);
+      }
+      var byteArray = new Uint8Array(byteNumbers);
+      byteArrays.push(byteArray);
+    }
+    let blob = new Blob(byteArrays, {
+      type: contentType,
+    });
+    return blob;
+  }
+
+  /**
+   *
+   * ****************************************PESDK*****************************************+*
+   */
 
   pesdk_success(result) {
     console.log(result);
@@ -60,14 +110,13 @@ export class HomePage {
     console.log('pesdk_failure: ' + JSON.stringify(error));
   }
 
-  onButtonClick(ImageUrl) {
+  EditImage(ImageUrl) {
     /* The license should have an extension like this:
        for iOS: "xxx.ios", example: pesdk_license.ios
        for Android: "xxx.android", example: pesdk_license.android
        then pass just the name without the extension to the
        `unlockWithLicense` function */
     // PESDK.unlockWithLicense('www/assets/pesdk_license');
-    console.log(ImageUrl);
     var config = {
       // Configure sticker tool
       sticker: {
